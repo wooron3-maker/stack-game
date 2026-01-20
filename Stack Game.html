@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!-- saved from url=(0088)file:///C:/Users/wooro/private/%E4%BD%9C%E6%88%90%E3%82%B2%E3%83%BC%E3%83%A0/index2.html -->
+<html lang="ja"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Stack Game</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:sans-serif;background:#f5f5f5;margin:0;padding:10px;text-align:center}
+h1{margin:8px 0}
+#status{font-size:18px;margin:10px 0;font-weight:bold}
+.board{display:grid;grid-template-columns:repeat(3,110px);gap:10px;justify-content:center;margin:12px auto}
+.cell{width:110px;height:110px;background:#fff;border:2px solid #444;display:flex;align-items:center;justify-content:center;position:relative}
+.cell.movable{background:rgba(0,200,255,.15)}
+.card{width:56px;height:56px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:bold;position:absolute;transition:all .15s}
+.card.stack-under{opacity:.45;transform:scale(.82);z-index:1}
+.card.top{z-index:3}
+.red{background:#ffcccc;border:2px solid #c00}
+.black{background:#ddd;border:2px solid #000}
+.card.selected,.hand span.selected{background:#fff3a0!important;border:3px solid orange!important;box-shadow:0 0 8px rgba(255,165,0,.8);animation:pulse 1s infinite}
+@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+.hand{display:flex;justify-content:center;gap:8px;margin:8px 0}
+.hand span{padding:10px 14px;border-radius:6px;font-weight:bold;font-size:18px;display:inline-block;transition:all .15s}
+.hand.active span{outline:3px solid #7fdfff}
+.hand.inactive{opacity:.5;transform:scale(.9)}
+button{margin:6px;padding:10px 16px;font-size:16px}
+</style>
+</head>
+<body>
+<h1>Stack Game</h1>
+<div id="status">黒の番：手札を置く / 盤上の札を動かす</div>
+<div id="hand-black" class="hand active"><span class="black">K</span><span class="black">Q</span><span class="black">Q</span><span class="black selected">J</span><span class="black">J</span></div>
+<div class="board" id="board"><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="card black top" style="top: 0px;">K</div></div><div class="cell"><div class="card red top" style="top: 0px;">Q</div></div><div class="cell"><div class="card red top" style="top: 0px;">J</div></div><div class="cell"><div class="card red top" style="top: 0px;">J</div></div><div class="cell"></div><div class="cell"></div></div>
+<div id="hand-red" class="hand inactive"><span class="red">K</span><span class="red">K</span><span class="red">Q</span></div>
+<div>
+<button onclick="undo()">一手前に戻る</button>
+<button onclick="resetGame()">リセット</button>
+</div>
+<script>
+const strength={J:1,Q:2,K:3}
+let board,hands,currentPlayer
+let selectedHand=null
+let selectedCell=null
+let history=[]
+let gameOver=false
+
+function init(){
+ board=Array.from({length:9},()=>[])
+ hands={red:['K','K','Q','Q','J','J'],black:['K','K','Q','Q','J','J']}
+ currentPlayer='red'
+ selectedHand=null
+ selectedCell=null
+ history=[]
+ gameOver=false
+ render()
+}
+
+function saveHistory(){history.push(JSON.parse(JSON.stringify({board,hands,currentPlayer})))}
+function undo(){if(!history.length)return;const p=history.pop();board=p.board;hands=p.hands;currentPlayer=p.currentPlayer;selectedHand=null;selectedCell=null;gameOver=false;render()}
+function resetGame(){init()}
+
+function canStack(target,card){if(!target.length)return true;const top=target[target.length-1];return top.color!==card.color&&strength[card.rank]>strength[top.rank]}
+
+function checkWin(){const L=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];for(const l of L){const t=l.map(i=>board[i][board[i].length-1]).filter(Boolean);if(t.length===3&&t.every(c=>c.color===t[0].color))return t[0].color}return null}
+
+function render(){
+ const winner=checkWin();if(winner)gameOver=true
+ document.getElementById('status').textContent=gameOver?(winner?(winner==='red'?'赤':'黒')+'の勝利':'引き分け'):(currentPlayer==='red'?'赤':'黒')+'の番：手札を置く / 盤上の札を動かす'
+ const bd=document.getElementById('board');bd.innerHTML=''
+ for(let i=0;i<9;i++){
+  const cell=document.createElement('div');cell.className='cell'
+  if(selectedCell!==null){const moving=board[selectedCell][board[selectedCell].length-1];if(moving&&canStack(board[i],moving))cell.classList.add('movable')}
+  cell.onclick=()=>cellClick(i)
+  board[i].forEach((card,idx)=>{
+    const d=document.createElement('div')
+    const isTop=idx===board[i].length-1
+    d.className='card '+card.color+(isTop?' top':' stack-under')
+    if(isTop&&selectedCell===i)d.classList.add('selected')
+    d.style.top=(idx*6)+'px'
+    d.textContent=card.rank
+    cell.appendChild(d)
+  })
+  bd.appendChild(cell)
+ }
+ ['red','black'].forEach(color=>{
+  const h=document.getElementById('hand-'+color);h.innerHTML='';h.className='hand '+(currentPlayer===color?'active':'inactive')
+  hands[color].forEach((r,idx)=>{
+    const s=document.createElement('span');s.className=color;s.textContent=r
+    if(selectedHand&&selectedHand.color===color&&selectedHand.index===idx)s.classList.add('selected')
+    s.onclick=()=>selectHand(color,idx)
+    h.appendChild(s)
+  })
+ })
+}
+
+function selectHand(color,idx){if(gameOver||color!==currentPlayer)return;selectedHand={color,index:idx};selectedCell=null;render()}
+
+function cellClick(i){
+ if(gameOver)return
+ const stack=board[i]
+ const top=stack[stack.length-1]
+
+ // 手札から置く
+ if(selectedHand){
+  const rank=hands[currentPlayer][selectedHand.index]
+  const card={rank,color:currentPlayer}
+  if(!canStack(stack,card))return
+  saveHistory();stack.push(card);hands[currentPlayer].splice(selectedHand.index,1)
+  selectedHand=null;currentPlayer=currentPlayer==='red'?'black':'red';render();return
+ }
+
+ // 選択フェーズ
+ if(selectedCell===null){
+  if(!stack.length||top.color!==currentPlayer)return
+  selectedCell=i;render();return
+ }
+
+ // 同じマス再クリックで解除
+ if(selectedCell===i){selectedCell=null;render();return}
+
+ // 移動フェーズ
+ const moving=board[selectedCell][board[selectedCell].length-1]
+ if(!canStack(stack,moving))return
+ saveHistory();board[selectedCell].pop();stack.push(moving)
+ selectedCell=null;currentPlayer=currentPlayer==='red'?'black':'red';render()
+}
+
+init()
+</script>
+
+</body></html>
