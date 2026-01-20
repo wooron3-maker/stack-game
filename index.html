@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カード三目並べ</title>
+
+<style>
+body { font-family: sans-serif; text-align: center; }
+
+h2 { margin: 16px; }
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 90px);
+  gap: 6px;
+  justify-content: center;
+  margin: 20px auto;
+}
+
+.cell {
+  width: 90px;
+  height: 90px;
+  border: 1px solid #333;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell.win {
+  background: #fff3b0;
+  border: 3px solid gold;
+}
+
+.cell.threat-opponent {
+  border: 2px dashed red;
+}
+
+.card {
+  width: 42px;
+  text-align: center;
+  border-radius: 6px;
+}
+
+.card.top {
+  font-size: 28px;
+  font-weight: bold;
+  border: 2px solid #666;
+}
+
+.card.under {
+  font-size: 14px;
+  opacity: 0.4;
+}
+
+.card.active {
+  background: #dff6ff;
+}
+
+.card.selected {
+  background: #fff3a0;
+  border: 2px solid orange;
+}
+
+.red { color: red; }
+.black { color: black; }
+
+.hand {
+  padding: 10px;
+  margin: 10px;
+}
+
+.hand.active {
+  background: #dff6ff;
+}
+
+.hand span {
+  border: 1px solid #888;
+  padding: 6px;
+  margin: 4px;
+  cursor: pointer;
+  background: white;
+  display: inline-block;
+}
+
+.hand span.selected {
+  background: #fff3a0;
+  border: 2px solid orange;
+}
+
+.controls {
+  margin: 12px;
+}
+
+button {
+  padding: 8px 16px;
+  margin: 0 6px;
+  font-size: 14px;
+}
+</style>
+</head>
+
+<body>
+
+<h2 id="status"></h2>
+
+<div class="hand red" id="red-hand"></div>
+
+<div class="board" id="board"></div>
+
+<div class="hand black" id="black-hand"></div>
+
+<div class="controls">
+  <button onclick="undo()">一手前に戻る</button>
+  <button onclick="init()">リセット</button>
+</div>
+
+<script>
+const strength = { J:1, Q:2, K:3 };
+const players = ["red","black"];
+const winLines = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+let board, hands, currentPlayer;
+let selectedCard = null;
+let selectedMove = null;
+let gameOver = false;
+let winLine = null;
+let winner = null;
+let history = [];
+
+function opponent(p){ return p==="red"?"black":"red"; }
+
+/* ===== ディープコピー ===== */
+function deepCopyBoard(b){
+  return b.map(stack => stack.map(c => ({...c})));
+}
+function deepCopyHands(h){
+  return {
+    red: [...h.red],
+    black: [...h.black]
+  };
+}
+
+/* ===== 履歴保存 ===== */
+function saveHistory(){
+  history.push({
+    board: deepCopyBoard(board),
+    hands: deepCopyHands(hands),
+    currentPlayer,
+    gameOver,
+    winLine: winLine ? [...winLine] : null,
+    winner
+  });
+  if(history.length > 1) history = history.slice(-1);
+}
+
+function undo(){
+  if(!history.length) return;
+  const s = history.pop();
+  board = s.board;
+  hands = s.hands;
+  currentPlayer = s.currentPlayer;
+  gameOver = s.gameOver;
+  winLine = s.winLine;
+  winner = s.winner;
+  selectedCard = null;
+  selectedMove = null;
+  render();
+}
+
+function init(){
+  board = Array(9).fill(null).map(()=>[]);
+  hands = {
+    red:["K","K","Q","Q","J","J"],
+    black:["K","K","Q","Q","J","J"]
+  };
+  currentPlayer = "red";
+  selectedCard = null;
+  selectedMove = null;
+  gameOver = false;
+  winLine = null;
+  winner = null;
+  history = [];
+  render();
+}
+
+function render(){
+  const status = document.getElementById("status");
+  status.textContent = gameOver
+    ? winner ? (winner==="red"?"赤":"黒")+"の勝利" : "引き分け"
+    : (currentPlayer==="red"?"赤":"黒")+"の番";
+
+  const opponentThreats = !gameOver
+    ? getThreatCells(opponent(currentPlayer))
+    : [];
+
+  const boardEl = document.getElementById("board");
+  boardEl.innerHTML = "";
+
+  board.forEach((stack,i)=>{
+    const c = document.createElement("div");
+    c.className = "cell";
+
+    if(winLine && winLine.includes(i)) c.classList.add("win");
+    else if(opponentThreats.includes(i)) c.classList.add("threat-opponent");
+
+    stack.forEach((card,idx)=>{
+      const d = document.createElement("div");
+      d.textContent = card.rank;
+      d.className = "card "+card.color+
+        (idx===stack.length-1?" top":" under");
+
+      if(idx===stack.length-1 && card.color===currentPlayer)
+        d.classList.add("active");
+
+      if(selectedMove===i && idx===stack.length-1)
+        d.classList.add("selected");
+
+      c.appendChild(d);
+    });
+
+    c.onclick = ()=>onCellClick(i);
+    boardEl.appendChild(c);
+  });
+
+  renderHand("red");
+  renderHand("black");
+}
+
+function renderHand(color){
+  const el = document.getElementById(color+"-hand");
+  el.className = "hand "+color+(currentPlayer===color?" active":"");
+  el.innerHTML = (color==="red"?"赤":"黒")+"手札: ";
+
+  hands[color].forEach((r,i)=>{
+    const s = document.createElement("span");
+    s.textContent = r;
+
+    if(selectedCard &&
+       selectedCard.color===color &&
+       selectedCard.index===i)
+      s.classList.add("selected");
+
+    s.onclick = ()=>{
+      if(gameOver || currentPlayer!==color) return;
+      selectedCard = {rank:r,index:i,color};
+      selectedMove = null;
+      render();
+    };
+    el.appendChild(s);
+  });
+}
+
+/* ===== クリック処理 ===== */
+function onCellClick(i){
+  if(gameOver) return;
+
+  const stack = board[i];
+  const top = stack.length ? stack[stack.length-1] : null;
+
+  // 盤上の自分の札は最優先
+  if(top && top.color===currentPlayer){
+    selectedMove = i;
+    selectedCard = null;
+    render();
+    return;
+  }
+
+  if(selectedMove!==null){
+    moveTop(i);
+    return;
+  }
+
+  if(selectedCard){
+    place(i);
+  }
+}
+
+function canStack(target, card){
+  if(!target.length) return true;
+  const top = target[target.length-1];
+  return top.color!==card.color &&
+         strength[top.rank]<strength[card.rank];
+}
+
+function place(i){
+  if(!canStack(board[i], selectedCard)) return;
+  saveHistory();
+  board[i].push({color:currentPlayer,rank:selectedCard.rank});
+  hands[currentPlayer].splice(selectedCard.index,1);
+  endTurn();
+}
+
+function moveTop(dest){
+  const src = selectedMove;
+  const card = board[src].pop();
+  if(!canStack(board[dest], card)){
+    board[src].push(card);
+    selectedMove = null;
+    render();
+    return;
+  }
+  saveHistory();
+  board[dest].push(card);
+  endTurn();
+}
+
+function endTurn(){
+  selectedCard = null;
+  selectedMove = null;
+
+  const r = checkWinAny();
+  if(r){
+    gameOver = true;
+    winner = r.player;
+    winLine = r.line;
+    render();
+    return;
+  }
+
+  if(board.every(s=>s.length)){
+    gameOver = true;
+    render();
+    return;
+  }
+
+  currentPlayer = opponent(currentPlayer);
+  render();
+}
+
+function checkWinAny(){
+  for(const p of players){
+    for(const line of winLines){
+      if(line.every(i=>{
+        const s = board[i];
+        return s.length && s[s.length-1].color===p;
+      })) return {player:p,line};
+    }
+  }
+  return null;
+}
+
+function getThreatCells(player){
+  const set = new Set();
+  for(const line of winLines){
+    let own=0, cand=[];
+    for(const i of line){
+      const s = board[i];
+      if(s.length){
+        const t = s[s.length-1];
+        if(t.color===player) own++;
+        else if(canStack(s,{color:player,rank:"K"})) cand.push(i);
+      } else cand.push(i);
+    }
+    if(own===2 && cand.length===1)
+      line.forEach(i=>set.add(i));
+  }
+  return [...set];
+}
+
+init();
+</script>
+</body>
+</html>
