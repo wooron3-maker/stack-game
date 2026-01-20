@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Stack Game</title>
+
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:sans-serif;background:#f5f5f5;margin:0;padding:10px;text-align:center}
+h1{margin:8px 0}
+#status{font-size:18px;margin:10px 0;font-weight:bold}
+.board{display:grid;grid-template-columns:repeat(3,110px);gap:10px;justify-content:center;margin:12px auto}
+.cell{width:110px;height:110px;background:#fff;border:2px solid #444;display:flex;align-items:center;justify-content:center;position:relative}
+.cell.win{background:#fff3a0;border-color:orange}
+.card{width:56px;height:56px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:bold;position:absolute;transition:all .15s}
+.card.stack-under{opacity:.45;transform:scale(.82);z-index:1}
+.card.top{z-index:3}
+.red{background:#ffcccc;border:2px solid #c00}
+.black{background:#ddd;border:2px solid #000}
+.card.selected,.hand span.selected{background:#fff3a0!important;border:3px solid orange!important;box-shadow:0 0 8px rgba(255,165,0,.8);animation:pulse 1s infinite}
+@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+.hand{display:flex;justify-content:center;gap:8px;margin:8px 0}
+.hand span{padding:10px 14px;border-radius:6px;font-weight:bold;font-size:18px;display:inline-block;transition:all .15s}
+.hand.active span{outline:3px solid #7fdfff}
+.hand.inactive{opacity:.5;transform:scale(.9)}
+button{margin:6px;padding:10px 16px;font-size:16px}
+
+/* 演出 */
+.effect-text{
+ position:fixed;
+ top:50%;
+ left:50%;
+ transform:translate(-50%,-50%);
+ font-size:15vw;
+ font-weight:900;
+ pointer-events:none;
+ animation:blink 2.8s ease-in-out;
+ z-index:9999;
+ white-space:nowrap;
+}
+@keyframes blink{
+ 0%{opacity:0}
+ 20%{opacity:1}
+ 50%{opacity:1}
+ 80%{opacity:1}
+ 100%{opacity:0}
+}
+.effect-pink{color:#ff5fa2}
+.effect-gold{color:gold}
+.effect-blue{color:#3aa0ff}
+
+/* クレジット */
+#credit{
+ margin-top:12px;
+ font-size:12px;
+ color:#666;
+}
+</style>
+</head>
+
+<body>
+<h1>Stack Game</h1>
+<div id="status"></div>
+
+<div id="hand-black" class="hand"></div>
+<div class="board" id="board"></div>
+<div id="hand-red" class="hand"></div>
+
+<div>
+<button onclick="undo()">一手前に戻る</button>
+<button onclick="resetGame()">リセット</button>
+</div>
+
+<div id="credit">OtoLogicの素材を使用</div>
+
+<script>
+const strength={J:1,Q:2,K:3}
+let board,hands,currentPlayer
+let selectedHand=null
+let selectedCell=null
+let history=[]
+let gameOver=false
+let winLine=null
+
+const sounds={
+ zeturin:new Audio('zeturin.mp3'),
+ oiroke:new Audio('oiroke.mp3'),
+ bakuhatu:new Audio('bakuhatu.mp3')
+}
+Object.values(sounds).forEach(s=>s.volume=0.7)
+
+function showEffect(text,cls){
+ const d=document.createElement('div')
+ d.className='effect-text '+cls
+ d.textContent=text
+ document.body.appendChild(d)
+ setTimeout(()=>d.remove(),3000)
+}
+
+function triggerEffect(name){
+ if(name==='絶倫'){showEffect('絶倫','effect-gold');sounds.zeturin.play()}
+ if(name==='正常位'){showEffect('正常位','effect-pink');sounds.oiroke.play()}
+ if(name==='騎乗位'){showEffect('騎乗位','effect-pink');sounds.oiroke.play()}
+ if(name==='ボーイズラブ'){showEffect('ボーイズラブ','effect-blue');sounds.bakuhatu.play()}
+}
+
+function init(){
+ board=Array.from({length:9},()=>[])
+ hands={red:['K','K','Q','Q','J','J'],black:['K','K','Q','Q','J','J']}
+ currentPlayer='red'
+ selectedHand=null
+ selectedCell=null
+ history=[]
+ gameOver=false
+ winLine=null
+ render()
+}
+
+function saveHistory(){
+ history.push(JSON.parse(JSON.stringify({board,hands,currentPlayer})))
+}
+
+function undo(){
+ if(!history.length)return
+ const p=history.pop()
+ board=p.board
+ hands=p.hands
+ currentPlayer=p.currentPlayer
+ selectedHand=null
+ selectedCell=null
+ gameOver=false
+ winLine=null
+ render()
+}
+function resetGame(){init()}
+
+function canStack(target,card){
+ if(!target.length)return true
+ const top=target[target.length-1]
+ return top.color!==card.color && strength[card.rank]>strength[top.rank]
+}
+
+function checkWin(){
+ const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
+ for(const l of lines){
+  const t=l.map(i=>board[i][board[i].length-1]).filter(Boolean)
+  if(t.length===3 && t.every(c=>c.color===t[0].color)){
+   return {color:t[0].color,line:l}
+  }
+ }
+ return null
+}
+
+function render(){
+ const res=checkWin()
+ if(res){
+  gameOver=true
+  winLine=res.line
+ }
+ document.getElementById('status').textContent=
+  gameOver?(res.color==='red'?'赤':'黒')+'の勝利'
+  :(currentPlayer==='red'?'赤':'黒')+'の番'
+
+ const bd=document.getElementById('board')
+ bd.innerHTML=''
+ for(let i=0;i<9;i++){
+  const cell=document.createElement('div')
+  cell.className='cell'
+  if(winLine&&winLine.includes(i))cell.classList.add('win')
+  cell.onclick=()=>cellClick(i)
+
+  const stack=board[i]
+  stack.forEach((card,idx)=>{
+   const d=document.createElement('div')
+   const isTop=idx===stack.length-1
+   d.className='card '+card.color+(isTop?' top':' stack-under')
+   if(isTop && selectedCell===i)d.classList.add('selected')
+
+   if(!isTop){
+    d.style.left = (idx%2===0 ? '-18px':'18px')
+    d.style.top = '32px'
+   }else{
+    d.style.top='0'
+   }
+
+   d.textContent=card.rank
+   cell.appendChild(d)
+  })
+  bd.appendChild(cell)
+ }
+
+ ;['red','black'].forEach(color=>{
+  const h=document.getElementById('hand-'+color)
+  h.innerHTML=''
+  h.className='hand '+(currentPlayer===color?'active':'inactive')
+  hands[color].forEach((r,idx)=>{
+   const s=document.createElement('span')
+   s.className=color
+   s.textContent=r
+   if(selectedHand&&selectedHand.color===color&&selectedHand.index===idx)s.classList.add('selected')
+   s.onclick=()=>selectHand(color,idx)
+   h.appendChild(s)
+  })
+ })
+}
+
+function selectHand(color,idx){
+ if(gameOver||color!==currentPlayer)return
+ selectedHand={color,index:idx}
+ selectedCell=null
+ render()
+}
+
+function cellClick(i){
+ if(gameOver)return
+ const stack=board[i]
+ const top=stack[stack.length-1]
+
+ if(stack.length && top.color===currentPlayer){
+  selectedCell=i
+  selectedHand=null
+  render()
+  return
+ }
+
+ if(selectedHand){
+  const isFirstMove=history.length===0
+  const rank=hands[currentPlayer][selectedHand.index]
+  const card={rank,color:currentPlayer}
+  if(!canStack(stack,card))return
+  saveHistory()
+
+  if(stack.length){
+   if(stack.at(-1).rank==='Q'&&rank==='K')triggerEffect('正常位')
+   if(stack.at(-1).rank==='J'&&rank==='Q')triggerEffect('騎乗位')
+   if(stack.at(-1).rank==='J'&&rank==='K')triggerEffect('ボーイズラブ')
+  }
+
+  stack.push(card)
+  hands[currentPlayer].splice(selectedHand.index,1)
+
+  if(isFirstMove && currentPlayer==='red' && rank==='K' && i===4){
+   triggerEffect('絶倫')
+  }
+
+  selectedHand=null
+  currentPlayer=currentPlayer==='red'?'black':'red'
+  render()
+  return
+ }
+
+ if(selectedCell!==null){
+  const moving=board[selectedCell].pop()
+  if(!canStack(stack,moving)){board[selectedCell].push(moving);return}
+  saveHistory()
+
+  if(stack.length){
+   if(stack.at(-1).rank==='Q'&&moving.rank==='K')triggerEffect('正常位')
+   if(stack.at(-1).rank==='J'&&moving.rank==='Q')triggerEffect('騎乗位')
+   if(stack.at(-1).rank==='J'&&moving.rank==='K')triggerEffect('ボーイズラブ')
+  }
+
+  stack.push(moving)
+  selectedCell=null
+  currentPlayer=currentPlayer==='red'?'black':'red'
+  render()
+ }
+}
+
+init()
+</script>
+</body>
+</html>
