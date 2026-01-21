@@ -133,6 +133,7 @@ function undo(){
  winLine=null
  render()
 }
+
 function resetGame(){init()}
 
 function canStack(target,card){
@@ -178,8 +179,8 @@ function render(){
    if(isTop && selectedCell===i)d.classList.add('selected')
 
    if(!isTop){
-    d.style.left = (idx%2===0 ? '-18px':'18px')
-    d.style.top = '32px'
+    d.style.left=(idx%2===0?'-18px':'18px')
+    d.style.top='32px'
    }else{
     d.style.top='0'
    }
@@ -251,9 +252,14 @@ function cellClick(i){
  }
 
  if(selectedCell!==null){
+  saveHistory() // ★ 修正ポイント（先に保存）
+
   const moving=board[selectedCell].pop()
-  if(!canStack(stack,moving)){board[selectedCell].push(moving);return}
-  saveHistory()
+  if(!canStack(stack,moving)){
+   board[selectedCell].push(moving)
+   history.pop() // ★ 無効移動なので履歴も戻す
+   return
+  }
 
   if(stack.length){
    if(stack.at(-1).rank==='Q'&&moving.rank==='K')triggerEffect('正常位')
