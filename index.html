@@ -22,10 +22,12 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            /* スマホのアドレスバー考慮した高さ設定とスクロール防止 */
+            height: 100dvh; 
             margin: 0;
             user-select: none;
-            padding: 10px;
+            padding: 0;
+            overflow: hidden; 
         }
 
         /* --- Setup Screens --- */
@@ -47,7 +49,7 @@
             border-radius: 16px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
             max-width: 400px;
-            width: 90%;
+            width: 85%;
         }
         .setup-content h2 { margin-top: 0; color: #333; }
         .setup-content p { color: #666; margin-bottom: 20px; }
@@ -85,31 +87,47 @@
         .minus { color: #f55; }
 
         #status {
-            margin-bottom: 15px; font-weight: bold; font-size: 1.4rem;
+            font-weight: bold; font-size: 1.2rem;
             min-height: 1.5em; text-align: center;
+            margin: 5px 0;
+            flex-shrink: 0;
         }
         .turn-red { color: var(--red-color); }
         .turn-black { color: var(--black-color); }
 
         .game-container {
-            display: flex; flex-direction: column; gap: 20px; align-items: center;
+            display: flex; flex-direction: column; 
+            align-items: center;
             opacity: 1; transition: opacity 0.3s;
+            /* 画面いっぱいに広げ、要素を均等配置 */
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 10px 10px 20px 10px;
+            justify-content: space-evenly;
         }
         .game-container.hidden { display: none; }
 
         .hand {
-            display: flex; gap: 6px; padding: 10px;
+            display: flex; gap: 4px; padding: 8px;
             background: #fff; border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            min-width: 320px; justify-content: center;
-            height: 80px; align-items: center;
+            /* 幅固定をやめ、画面サイズに合わせる */
+            width: 100%; 
+            max-width: 45vh; /* 盤面の最大幅に合わせる */
+            min-width: 0;
+            justify-content: center;
+            height: 70px; 
+            align-items: center;
+            flex-shrink: 0; /* 縮小しすぎないように */
         }
 
         .card {
-            width: 44px; height: 60px;
+            /* カードサイズを少し縮小してスマホに対応 */
+            width: 38px; height: 54px;
             border: 2px solid #333; border-radius: 4px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.4rem; font-weight: bold;
+            font-size: 1.2rem; font-weight: bold;
             background-color: white; box-sizing: border-box;
             transition: transform 0.1s ease-out; position: relative;
         }
@@ -117,7 +135,7 @@
         .card.black { color: var(--black-color); border-color: var(--black-color); }
         .used { opacity: 0.1; pointer-events: none; }
 
-        .movable { box-shadow: 0 0 0 4px var(--highlight-movable); cursor: pointer; }
+        .movable { box-shadow: 0 0 0 3px var(--highlight-movable); cursor: pointer; }
         .selected {
             background-color: #fffde7;
             border: 3px solid var(--highlight-selected) !important;
@@ -127,15 +145,23 @@
 
         .board {
             display: grid;
-            grid-template-columns: repeat(3, 100px);
-            grid-template-rows: repeat(3, 100px);
-            gap: 10px;
+            /* ピクセル固定をやめ、比率(fr)に変更 */
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
             background-color: var(--board-bg);
-            padding: 10px; border-radius: 8px;
+            padding: 8px; border-radius: 8px;
+            /* 幅を画面いっぱい、ただし高さ(vh)基準で制限して正方形を維持 */
+            width: 100%;
+            max-width: 45vh; 
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
         }
 
         .cell {
-            background-color: #fff; width: 100px; height: 100px;
+            background-color: #fff; 
+            /* 固定サイズ削除 */
+            width: 100%; height: 100%;
             border-radius: 4px; position: relative;
             display: flex; align-items: center; justify-content: center;
         }
@@ -144,21 +170,29 @@
         .stack-wrapper {
             position: relative; width: 100%; height: 100%;
             display: flex; align-items: center; justify-content: center;
-            padding-left: 20px; box-sizing: border-box;
+            /* パディング調整 */
+            padding-left: 15px; 
+            box-sizing: border-box;
         }
-        .card-in-cell { position: absolute; box-shadow: -2px 0px 4px rgba(0,0,0,0.2); }
-        .pos-single { z-index: 10; transform: translateX(-10px); }
+        .card-in-cell { position: absolute; box-shadow: -1px 0px 3px rgba(0,0,0,0.2); }
+        
+        /* カードサイズ変更に合わせて重なり幅を微調整 */
+        .pos-single { z-index: 10; transform: translateX(-8px); }
         .pos-top { z-index: 30; transform: translateX(0px); }
-        .pos-middle { z-index: 20; transform: translateX(-22px) translateY(2px); }
-        .pos-bottom { z-index: 10; transform: translateX(-44px) translateY(4px); }
+        .pos-middle { z-index: 20; transform: translateX(-19px) translateY(2px); }
+        .pos-bottom { z-index: 10; transform: translateX(-38px) translateY(4px); }
 
-        .controls { margin-top: 25px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .controls { 
+            margin-top: 5px; 
+            display: flex; flex-direction: column; align-items: center; gap: 8px; 
+            flex-shrink: 0;
+        }
         .controls.hidden { display: none; }
         .btn-group { display: flex; gap: 10px; }
         
         button.action-btn {
-            padding: 10px 20px; border-radius: 20px; border: none;
-            cursor: pointer; font-size: 0.9rem; font-weight: bold;
+            padding: 8px 16px; border-radius: 20px; border: none;
+            cursor: pointer; font-size: 0.85rem; font-weight: bold;
             transition: opacity 0.2s;
         }
         button.action-btn:active { opacity: 0.7; }
@@ -166,7 +200,7 @@
         .btn-gray { background: #777; color: white; }
         .btn-outline { background: #eee; color: #333; border: 1px solid #ccc; }
         
-        .mode-switch { font-size: 0.9rem; color: #333; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .mode-switch { font-size: 0.8rem; color: #333; display: flex; align-items: center; gap: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -195,22 +229,22 @@
         <div id="debug-content"></div>
     </div>
 
-    <div id="status"></div>
-
     <div class="game-container hidden" id="game-container">
+        <div id="status"></div>
+        
         <div class="hand" id="hand-red"></div>
         <div class="board" id="board"></div>
         <div class="hand" id="hand-black"></div>
-    </div>
 
-    <div class="controls hidden" id="game-controls">
-        <div class="btn-group">
-            <button class="action-btn btn-outline" onclick="undo()" id="undo-btn">１手戻す (Undo)</button>
-            <button class="action-btn btn-gray" onclick="resetToTitle()">タイトルへ戻る</button>
+        <div class="controls hidden" id="game-controls">
+            <div class="btn-group">
+                <button class="action-btn btn-outline" onclick="undo()" id="undo-btn">１手戻す (Undo)</button>
+                <button class="action-btn btn-gray" onclick="resetToTitle()">タイトルへ戻る</button>
+            </div>
+            <label class="mode-switch" id="debug-switch-label">
+                <input type="checkbox" id="debug-mode" onchange="toggleDebug()"> デバッグ表示
+            </label>
         </div>
-        <label class="mode-switch" id="debug-switch-label">
-            <input type="checkbox" id="debug-mode" onchange="toggleDebug()"> デバッグ表示
-        </label>
     </div>
 
 <script>
