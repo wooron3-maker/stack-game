@@ -72,6 +72,41 @@
         .big-btn.primary:hover { opacity: 0.9; background: var(--black-color); }
         .big-btn.secondary { background: var(--red-color); color: white; border: none; }
 
+        /* --- Effect Overlay --- */
+        #effect-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-size: 4rem;
+            font-weight: 900;
+            white-space: nowrap;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5000;
+            display: none;
+        }
+        .effect-anim {
+            animation: effect-pop 2.5s ease-out forwards;
+        }
+        @keyframes effect-pop {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            25% { transform: translate(-50%, -50%) scale(1.0); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+        }
+        .effect-option {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+
         /* --- Game UI --- */
         #debug-panel {
             position: fixed;
@@ -108,6 +143,21 @@
         }
         .game-container.hidden { display: none; }
 
+        .hand-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 5px;
+        }
+
+        .player-label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #555;
+        }
+        #label-black { transform: rotate(180deg); }
+
         .hand {
             display: flex; gap: 4px; padding: 8px;
             background: #fff; border-radius: 12px;
@@ -132,15 +182,25 @@
             transition: transform 0.1s ease-out; position: relative;
         }
         .card.red { color: var(--red-color); border-color: var(--red-color); }
-        .card.black { color: var(--black-color); border-color: var(--black-color); }
+        .card.black { 
+            color: var(--black-color); 
+            border-color: var(--black-color);
+            transform: rotate(180deg);
+        }
         .used { opacity: 0.1; pointer-events: none; }
 
         .movable { box-shadow: 0 0 0 3px var(--highlight-movable); cursor: pointer; }
+        
         .selected {
             background-color: #fffde7;
             border: 3px solid var(--highlight-selected) !important;
             transform: translateY(-8px) scale(1.1) !important;
             z-index: 100 !important;
+        }
+
+        /* 黒カード（上側）が選択されたときは、その向きに合わせて移動 */
+        .card.black.selected {
+            transform: rotate(180deg) translateY(-8px) scale(1.1) !important;
         }
 
         .board {
@@ -182,6 +242,21 @@
         .pos-middle { z-index: 20; transform: translateX(-19px) translateY(2px); }
         .pos-bottom { z-index: 10; transform: translateX(-38px) translateY(4px); }
 
+        /* 黒カードが盤面にある場合の重なり調整（回転を維持しつつ位置を調整） */
+        .card.black.card-in-cell.pos-single { transform: rotate(180deg) translateX(8px); }
+        .card.black.card-in-cell.pos-top { transform: rotate(180deg) translateX(0px); }
+        .card.black.card-in-cell.pos-middle { transform: rotate(180deg) translateX(19px) translateY(-2px); }
+        .card.black.card-in-cell.pos-bottom { transform: rotate(180deg) translateX(38px) translateY(-4px); }
+
+        /* CPU対戦時の表示調整用スタイル */
+        .game-container.is-cpu .card.black { transform: none; }
+        .game-container.is-cpu .card.black.selected { transform: translateY(-8px) scale(1.1) !important; }
+        .game-container.is-cpu .card.black.card-in-cell.pos-single { transform: translateX(-8px); }
+        .game-container.is-cpu .card.black.card-in-cell.pos-top { transform: translateX(0px); }
+        .game-container.is-cpu .card.black.card-in-cell.pos-middle { transform: translateX(-19px) translateY(2px); }
+        .game-container.is-cpu .card.black.card-in-cell.pos-bottom { transform: translateX(-38px) translateY(4px); }
+        .game-container.is-cpu #label-black { transform: none; }
+
         .controls { 
             margin-top: 5px; 
             display: flex; flex-direction: column; align-items: center; gap: 8px; 
@@ -201,6 +276,12 @@
         .btn-outline { background: #eee; color: #333; border: 1px solid #ccc; }
         
         .mode-switch { font-size: 0.8rem; color: #333; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+        .credit-text {
+            font-size: 10px;
+            color: #999;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -211,6 +292,11 @@
             <p>対戦モードを選択してください</p>
             <button class="big-btn primary" onclick="selectMode(true)">CPU対戦 (ひとり用)</button>
             <button class="big-btn" onclick="selectMode(false)">人間対戦 (ふたり用)</button>
+            
+            <div class="effect-option">
+                <input type="checkbox" id="enable-effect" style="transform: scale(1.3);">
+                <label for="enable-effect">y39モード</label>
+            </div>
         </div>
     </div>
 
@@ -229,12 +315,22 @@
         <div id="debug-content"></div>
     </div>
 
+    <div id="effect-overlay"></div>
+
     <div class="game-container hidden" id="game-container">
         <div id="status"></div>
         
-        <div class="hand" id="hand-red"></div>
+        <div class="hand-wrapper">
+            <div class="player-label" id="label-black"></div>
+            <div class="hand" id="hand-black"></div>
+        </div>
+
         <div class="board" id="board"></div>
-        <div class="hand" id="hand-black"></div>
+
+        <div class="hand-wrapper">
+            <div class="hand" id="hand-red"></div>
+            <div class="player-label" id="label-red"></div>
+        </div>
 
         <div class="controls hidden" id="game-controls">
             <div class="btn-group">
@@ -244,6 +340,7 @@
             <label class="mode-switch" id="debug-switch-label">
                 <input type="checkbox" id="debug-mode" onchange="toggleDebug()"> デバッグ表示
             </label>
+            <div class="credit-text">OtoLogicの素材を使用</div>
         </div>
     </div>
 
@@ -255,11 +352,15 @@
     let boardState = Array.from({length: 9}, () => []);
     let hands = { red: [], black: [] };
     let turn = 'red', winnerInfo = null, sourceSelection = null, isCpuMode = true, isCpuThinking = false, playerColor = 'red', history = []; 
+    let useEffects = false; // 演出フラグ
 
     // --- Setup Flow Functions ---
     
     function selectMode(cpu) {
         isCpuMode = cpu;
+        // 演出チェックボックスの状態を取得
+        useEffects = document.getElementById('enable-effect').checked;
+        
         document.getElementById('mode-select').style.display = 'none';
         
         if (cpu) {
@@ -277,10 +378,32 @@
     }
 
     function startGame(selectedColor) {
+        playerColor = selectedColor;
+        const container = document.getElementById('game-container');
+        
+        // CPUモードのクラス制御
+        if (isCpuMode) {
+            container.classList.add('is-cpu');
+        } else {
+            container.classList.remove('is-cpu');
+        }
+
         document.getElementById('color-select').style.display = 'none';
-        document.getElementById('game-container').classList.remove('hidden');
+        container.classList.remove('hidden');
         document.getElementById('game-controls').classList.remove('hidden');
         
+        // ラベルの設定
+        const labelRed = document.getElementById('label-red');
+        const labelBlack = document.getElementById('label-black');
+        if (isCpuMode) {
+            // CPU対戦：下側は常に「あなた」、上側は常に「CPU」
+            labelRed.innerText = 'あなた';
+            labelBlack.innerText = 'CPU';
+        } else {
+            labelRed.innerText = '赤プレイヤー';
+            labelBlack.innerText = '黒プレイヤー';
+        }
+
         // 人間対戦時はデバッグ表示スイッチを隠す
         document.getElementById('debug-switch-label').style.display = isCpuMode ? 'flex' : 'none';
         
@@ -294,6 +417,11 @@
         document.getElementById('debug-panel').style.display = 'none';
         // デバッグチェックボックスをリセット(OFF)
         document.getElementById('debug-mode').checked = false;
+        
+        // 演出オーバーレイをリセット
+        const overlay = document.getElementById('effect-overlay');
+        overlay.style.display = 'none';
+        overlay.className = '';
     }
 
     // --- Game Logic ---
@@ -398,7 +526,58 @@
         return true;
     }
 
+    // 演出実行関数
+    function triggerEffect(text, color, soundFile) {
+        const overlay = document.getElementById('effect-overlay');
+        overlay.innerText = text;
+        overlay.style.color = color;
+        overlay.style.display = 'block';
+        
+        // アニメーション再トリガーのためにクラスを付け外し
+        overlay.classList.remove('effect-anim');
+        void overlay.offsetWidth; // Reflow
+        overlay.classList.add('effect-anim');
+
+        // 音声再生 (エラーハンドリング付き)
+        try {
+            const audio = new Audio(soundFile);
+            audio.play().catch(e => console.log('Audio play failed (interaction required):', e));
+        } catch (e) {
+            console.log('Audio error:', e);
+        }
+    }
+
     function executeMove(src, targetIndex) {
+        // --- 演出判定ロジック開始 ---
+        if (useEffects) {
+            const incomingRank = src.rank;
+            const targetStack = boardState[targetIndex];
+            const targetTop = targetStack.length > 0 ? targetStack[targetStack.length - 1] : null;
+
+            // 1. 初手で真ん中にK
+            // 盤面が全て空であることを確認
+            const isBoardEmpty = boardState.every(s => s.length === 0);
+            if (isBoardEmpty && targetIndex === 4 && incomingRank === 'K') {
+                triggerEffect("絶倫", "#ffd600", "zeturin.mp3");
+            } 
+            else if (targetTop) {
+                const bottomRank = targetTop.rank;
+                // 2. Jの上にQ
+                if (bottomRank === 'J' && incomingRank === 'Q') {
+                    triggerEffect("騎乗位", "#e91e63", "oiroke.mp3");
+                }
+                // 3. Qの上にK
+                else if (bottomRank === 'Q' && incomingRank === 'K') {
+                    triggerEffect("正常位", "#e91e63", "oiroke.mp3");
+                }
+                // 4. Jの上にK
+                else if (bottomRank === 'J' && incomingRank === 'K') {
+                    triggerEffect("ボーイズラブ", "#29b6f6", "bakuhatu.mp3");
+                }
+            }
+        }
+        // --- 演出判定ロジック終了 ---
+
         const card = { color: src.color, rank: src.rank };
         if (src.type === 'hand') hands[src.color][src.index].used = true;
         else boardState[src.cellIndex].pop();
@@ -429,6 +608,28 @@
         
         const moves = getAllValidMoves(boardState, myColor, myHand);
         if (moves.length === 0) return { surrender: true };
+
+        // --- 初手特別処理 (先行/赤番の初手のみ) ---
+        const isFirstMove = boardState.every(s => s.length === 0);
+        if (isFirstMove && myColor === 'red') {
+            const rand = Math.random();
+            if (rand < 0.7) {
+                // 70%の確率で真ん中(4)にKを置く
+                const kIndex = myHand.findIndex(c => c.rank === 'K' && !c.used);
+                if (kIndex !== -1) {
+                    return {
+                        source: { type: 'hand', color: myColor, index: kIndex, rank: 'K' },
+                        targetIndex: 4,
+                        details: { total: "初手特別処理 (70% 中央K)", plus: {"初手補正": "中央K"}, minus: {} }
+                    };
+                }
+            }
+            // 残り30%、またはKが見つからない場合は完全ランダム
+            const randomMove = moves[Math.floor(Math.random() * moves.length)];
+            randomMove.details = { total: "初手特別処理 (30% ランダム)", plus: {"初手補正": "ランダム選択"}, minus: {} };
+            return randomMove;
+        }
+        // --- 初手特別処理 終了 ---
 
         let bestScore = -Infinity;
         let bestMoves = [];
@@ -734,7 +935,17 @@
                 el.appendChild(c);
             });
         };
-        drawH('hand-red', 'red'); drawH('hand-black', 'black');
+
+        if (isCpuMode) {
+            // CPU対戦時は人間を常に下(hand-red側)、CPUを常に上(hand-black側)に表示
+            const cpuColor = (playerColor === 'red') ? 'black' : 'red';
+            drawH('hand-red', playerColor); 
+            drawH('hand-black', cpuColor);
+        } else {
+            drawH('hand-red', 'red'); 
+            drawH('hand-black', 'black');
+        }
+
         document.getElementById('undo-btn').disabled = history.length === 0 || isCpuThinking;
     }
 </script>
